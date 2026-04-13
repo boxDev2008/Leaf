@@ -44,7 +44,7 @@ void leaf_raylib_initialize(const char *font_name)
         "void main() {"
             "vec2 uv = fragTexCoord - 0.5;"
             "vec2 pixel = uv * size;"
-            "float r = roundness * 0.5;"
+            "float r = roundness;"
             "vec2 q = abs(pixel) - (size * 0.5 - r);"
             "float dist = length(max(q, 0.0)) - r;"
             "if (dist > 0.0) discard;"
@@ -104,7 +104,8 @@ void leaf_raylib_render(Leaf_RenderCmdList cmd_list)
         case LEAF_RENDER_CMD_IMAGE:
         {
             Texture2D texture = *(Texture2D*)cmd.image.handle;
-            float roundness = cmd.image.roundness * 2.0f;
+            float max_roundness = (cmd.bounding_box.height > cmd.bounding_box.width ? cmd.bounding_box.width : cmd.bounding_box.height) * 0.5f;
+            float roundness = cmd.image.roundness > max_roundness ? max_roundness : cmd.image.roundness;
 
             Rectangle source = { 0, 0, (float)texture.width, (float)texture.height };
             Rectangle dest = { cmd.bounding_box.x, cmd.bounding_box.y, cmd.bounding_box.width, cmd.bounding_box.height };
