@@ -16,6 +16,7 @@ struct
     Font large_font;
     Shader round_image_shader;
     int32_t roundness_location;
+    int32_t size_location;
 }
 leaf_raylib_ctx;
 
@@ -39,10 +40,12 @@ void leaf_raylib_initialize(const char *font_name)
         "out vec4 finalColor;"
         "uniform sampler2D texture0;"
         "uniform float roundness;"
+        "uniform vec2 size;"
         "void main() {"
             "vec2 uv = fragTexCoord - 0.5;"
-            "float r = roundness;"
-            "vec2 q = abs(uv) - (0.5 - r);"
+            "vec2 pixel = uv * size;"
+            "float r = roundness * 0.5;"
+            "vec2 q = abs(pixel) - (size * 0.5 - r);"
             "float dist = length(max(q, 0.0)) - r;"
             "if (dist > 0.0) discard;"
             "finalColor = texture(texture0, fragTexCoord);"
@@ -50,6 +53,7 @@ void leaf_raylib_initialize(const char *font_name)
     );
 
     leaf_raylib_ctx.roundness_location = GetShaderLocation(leaf_raylib_ctx.round_image_shader, "roundness");
+    leaf_raylib_ctx.size_location = GetShaderLocation(leaf_raylib_ctx.round_image_shader, "size");
 }
 
 void leaf_raylib_shutdown(void)
@@ -99,19 +103,21 @@ void leaf_raylib_render(Leaf_RenderCmdList cmd_list)
         }
         case LEAF_RENDER_CMD_IMAGE:
         {
-            float min_side = (cmd.bounding_box.width < cmd.bounding_box.height)
-                ? cmd.bounding_box.width
-                : cmd.bounding_box.height;
-            float roundness = (min_side > 0) ? (cmd.image.roundness / (min_side * 0.5f)) * 0.5f : 0.0f;
-            if (roundness > 0.5f) roundness = 0.5f;
             Texture2D texture = *(Texture2D*)cmd.image.handle;
+            float roundness = cmd.image.roundness * 2.0f;
+
             Rectangle source = { 0, 0, (float)texture.width, (float)texture.height };
             Rectangle dest = { cmd.bounding_box.x, cmd.bounding_box.y, cmd.bounding_box.width, cmd.bounding_box.height };
+
+            float size[2] = { cmd.bounding_box.width, cmd.bounding_box.height };
+
             BeginShaderMode(leaf_raylib_ctx.round_image_shader);
             SetShaderValue(leaf_raylib_ctx.round_image_shader, leaf_raylib_ctx.roundness_location, &roundness, SHADER_UNIFORM_FLOAT);
+            SetShaderValue(leaf_raylib_ctx.round_image_shader, leaf_raylib_ctx.size_location, size, SHADER_UNIFORM_VEC2);
             DrawTexturePro(texture, source, dest, (Vector2){0, 0}, 0.0f,
                 (Color){cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a});
             EndShaderMode();
+            break;
         }
         case LEAF_RENDER_CMD_SCISSOR_PUSH:
             if (in_scissor)
