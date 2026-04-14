@@ -107,14 +107,14 @@ typedef struct
 }
 Leaf_Alignment;
 
-typedef enum
+typedef uint8_t Leaf_SizingType;
+enum
 {
     LEAF_SIZING_TYPE_FIT,
     LEAF_SIZING_TYPE_GROW,
     LEAF_SIZING_TYPE_PERCENT,
     LEAF_SIZING_TYPE_FIXED
-}
-Leaf_SizingType;
+};
 
 typedef struct
 {
