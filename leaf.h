@@ -69,12 +69,13 @@ typedef struct
 }
 Leaf_BoundingBox;
 
-typedef enum
+typedef uint8_t Leaf_Positioning;
+enum
 {
     LEAF_POSITIONING_RELATIVE,
-    LEAF_POSITIONING_FLOATING
-}
-Leaf_Positioning;
+    LEAF_POSITIONING_FLOATING_TO_PARENT,
+    LEAF_POSITIONING_FLOATING_TO_ROOT
+};
 
 typedef uint8_t Leaf_LayoutDirection;
 enum
@@ -156,18 +157,19 @@ Leaf_Image;
 typedef struct
 {
     Leaf_ID id;
-    Leaf_Image image;
-    Leaf_Color color;
-    Leaf_Vec2 floating;
-    Leaf_Vec2 child_offset;
-    Leaf_Positioning positioning;
     Leaf_Sizing sizing;
     Leaf_Padding padding;
-    Leaf_Alignment child_alignment;
-    Leaf_LayoutDirection direction;
+    Leaf_Vec2 floating_offset;
+    Leaf_Vec2 child_offset;
     Leaf_Border border;
+    Leaf_Image image;
+    Leaf_Color color;
     float child_gap;
     float roundness;
+    Leaf_Alignment child_alignment;
+    Leaf_Alignment floating_alignment;
+    Leaf_LayoutDirection direction;
+    Leaf_Positioning positioning;
 }
 Leaf_ElementConfig;
 
@@ -254,10 +256,10 @@ typedef Leaf_Dimensions (*Leaf_MeasureTextFn)(const char *text, uint32_t length,
          leaf__i_; \
          leaf__i_ = (leaf_end_element(), 0))
 
-#define leaf_debug(show, delta_time, scroll_delta) \
+#define leaf_debug(show, menu_width, delta_time, scroll_delta) \
     for (int leaf__i_ = (leaf_begin_debug_context(show, delta_time, scroll_delta), 1); \
          leaf__i_; \
-         leaf__i_ = (leaf_end_debug_context(), 0))
+         leaf__i_ = (leaf_end_debug_context(menu_width), 0))
 
 Leaf_ID leaf_id(const char *label);
 Leaf_ID leaf_id_indexed(const char *label, uint64_t index);
@@ -278,7 +280,7 @@ Leaf_RenderCmdList leaf_end_frame(void);
 void __leaf_text(const char *text, Leaf_TextConfig config);
 
 void leaf_begin_debug_context(bool show, float delta_time, float scroll_delta);
-void leaf_end_debug_context(void);
+void leaf_end_debug_context(float menu_width);
 
 #ifdef LEAF_IMPLEMENTATION
 
@@ -607,9 +609,6 @@ static void leaf_grow_pass(Leaf_Node *parent)
 
         const Leaf_ElementConfig *config = &child->element.config;
 
-        if (config->positioning == LEAF_POSITIONING_FLOATING)
-            continue;
-
         if (config->sizing.width.type == LEAF_SIZING_TYPE_PERCENT)
         {
             float available = parent->bounding_box.width - padding.left - padding.right;
@@ -620,6 +619,9 @@ static void leaf_grow_pass(Leaf_Node *parent)
             float available = parent->bounding_box.height - padding.top - padding.bottom;
             child->bounding_box.height = available * config->sizing.height.size.percent;
         }
+
+        if (config->positioning != LEAF_POSITIONING_RELATIVE)
+            continue;
 
         if (config->sizing.width.type == LEAF_SIZING_TYPE_GROW)
             growing_width_count++;
@@ -642,7 +644,7 @@ static void leaf_grow_pass(Leaf_Node *parent)
 
         const Leaf_ElementConfig *config = &child->element.config;
 
-        if (config->positioning != LEAF_POSITIONING_FLOATING)
+        if (config->positioning == LEAF_POSITIONING_RELATIVE)
         {
             if (config->sizing.width.type == LEAF_SIZING_TYPE_GROW)
             {
@@ -743,10 +745,9 @@ static void leaf_position_and_render_nodes(Leaf_Node *parent)
 {
     if (parent->type != LEAF_NODE_TYPE_ELEMENT)
         return;
-    
+
 #define LEAF_MAIN(horizontal, a, b) ((horizontal) ? (a) : (b))
 #define LEAF_CROSS(horizontal, a, b) ((horizontal) ? (b) : (a))
-
 #define LEAF_ALIGN_OFFSET(align, end_val, center_val, free) \
     ((align) == (end_val) ? (free) : \
      (align) == (center_val) ? (free) * 0.5f : 0)
@@ -764,7 +765,7 @@ static void leaf_position_and_render_nodes(Leaf_Node *parent)
     float children_total = 0;
     LEAF_FOREACH_CHILD(child, parent)
     {
-        if (child->type != LEAF_NODE_TYPE_ELEMENT || child->element.config.positioning != LEAF_POSITIONING_FLOATING)
+        if (child->type != LEAF_NODE_TYPE_ELEMENT || child->element.config.positioning == LEAF_POSITIONING_RELATIVE)
             children_total += LEAF_MAIN(h, child->bounding_box.width, child->bounding_box.height);
     }
     children_total += leaf_max(parent->child_count - 1, 0) * config->child_gap;
@@ -780,22 +781,52 @@ static void leaf_position_and_render_nodes(Leaf_Node *parent)
 
     LEAF_FOREACH_CHILD(child, parent)
     {
-        if (child->type == LEAF_NODE_TYPE_ELEMENT && child->element.config.positioning == LEAF_POSITIONING_FLOATING)
+        if (child->type == LEAF_NODE_TYPE_ELEMENT)
         {
-            child->bounding_box.x = child->element.config.floating.x;
-            child->bounding_box.y = child->element.config.floating.y;
-            leaf_render_node(child);
-            leaf_record_hover(child);
-            leaf_push_render_cmd((Leaf_RenderCmd){
-                .type = LEAF_RENDER_CMD_SCISSOR_PUSH,
-                .bounding_box = child->bounding_box
-            });
-            leaf_position_and_render_nodes(child);
-            leaf_push_render_cmd((Leaf_RenderCmd){
-                .type = LEAF_RENDER_CMD_SCISSOR_POP
-            });
+            const Leaf_ElementConfig *child_config = &child->element.config;
+
+            if (child_config->positioning == LEAF_POSITIONING_FLOATING_TO_PARENT ||
+                child_config->positioning == LEAF_POSITIONING_FLOATING_TO_ROOT)
+            {
+                Leaf_BoundingBox anchor;
+                if (child_config->positioning == LEAF_POSITIONING_FLOATING_TO_PARENT)
+                    anchor = parent->bounding_box;
+                else
+                {
+                    Leaf_Node *root = leaf_ctx->stack[0];
+                    anchor = root->bounding_box;
+                }
+
+                float align_x = 0.0f, align_y = 0.0f;
+
+                if (child_config->floating_alignment.x == LEAF_ALIGN_X_RIGHT)
+                    align_x = anchor.width - child->bounding_box.width;
+                else if (child_config->floating_alignment.x == LEAF_ALIGN_X_CENTER)
+                    align_x = (anchor.width - child->bounding_box.width) * 0.5f;
+
+                if (child_config->floating_alignment.y == LEAF_ALIGN_Y_BOTTOM)
+                    align_y = anchor.height - child->bounding_box.height;
+                else if (child_config->floating_alignment.y == LEAF_ALIGN_Y_CENTER)
+                    align_y = (anchor.height - child->bounding_box.height) * 0.5f;
+
+                child->bounding_box.x = anchor.x + align_x + child_config->floating_offset.x;
+                child->bounding_box.y = anchor.y + align_y + child_config->floating_offset.y;
+
+                leaf_render_node(child);
+                leaf_record_hover(child);
+                leaf_push_render_cmd((Leaf_RenderCmd){
+                    .type = LEAF_RENDER_CMD_SCISSOR_PUSH,
+                    .bounding_box = child->bounding_box
+                });
+                leaf_position_and_render_nodes(child);
+                leaf_push_render_cmd((Leaf_RenderCmd){
+                    .type = LEAF_RENDER_CMD_SCISSOR_POP
+                });
+                continue;
+            }
         }
-        else
+
+        // Relative positioning
         {
             float layout_w = (child->type == LEAF_NODE_TYPE_TEXT) ? 0.f : child->bounding_box.width;
             float layout_h = (child->type == LEAF_NODE_TYPE_TEXT) ? 0.f : child->bounding_box.height;
@@ -893,7 +924,7 @@ Leaf_RenderCmdList leaf_end_frame(void)
 }
 
 #ifndef LEAF_NO_DEBUG_TOOLS
-static const float LEAF_BASE_DEBUG_FONT_SIZE = 23.0f;
+static const float LEAF_BASE_DEBUG_FONT_SIZE = 20.0f;
 
 static const Leaf_Color LEAF_DBG_BG1 = {37, 35, 33, 255};
 static const Leaf_Color LEAF_DBG_BG2 = {46, 44, 42, 255};
@@ -971,11 +1002,11 @@ void leaf_begin_debug_context(bool show, float delta_time, float scroll_delta)
     });
 }
 
-void leaf_end_debug_context(void)
+void leaf_end_debug_context(float menu_width)
 {
     Leaf_Node *inner_root = leaf_stack_top();
     leaf({
-        .sizing = {LEAF_FIXED(600.0f * leaf_debug_menu_show_factor), LEAF_GROW},
+        .sizing = {LEAF_FIXED(menu_width * leaf_debug_menu_show_factor), LEAF_GROW},
         .color = LEAF_DBG_BG1,
         .border = {LEAF_DBG_BORDER, 1.0f}
     })
