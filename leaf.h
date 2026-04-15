@@ -166,6 +166,7 @@ typedef struct
     Leaf_Color color;
     float child_gap;
     float roundness;
+    float aspect_ratio;
     Leaf_Alignment child_alignment;
     Leaf_Alignment floating_alignment;
     Leaf_LayoutDirection direction;
@@ -573,6 +574,21 @@ static inline void leaf_element_clamp_min_max(Leaf_Node *node, const Leaf_Elemen
         node->bounding_box.height = mx;
 }
 
+static inline void leaf_apply_aspect_ratio(Leaf_Node *node)
+{
+    const Leaf_ElementConfig *config = &node->element.config;
+    if (config->aspect_ratio <= 0.0f)
+        return;
+
+    float *w = &node->bounding_box.width;
+    float *h = &node->bounding_box.height;
+
+    if (*w == 0.0f && *h != 0.0f)
+        *w = *h * config->aspect_ratio;
+    else if (*w != 0.0f && *h == 0.0f)
+        *h = *w / config->aspect_ratio;
+}
+
 static void leaf_grow_pass(Leaf_Node *parent)
 {
     if (parent->type != LEAF_NODE_TYPE_ELEMENT)
@@ -662,6 +678,7 @@ static void leaf_grow_pass(Leaf_Node *parent)
         }
 
         leaf_element_clamp_min_max(child, config);
+        leaf_apply_aspect_ratio(child);
         leaf_grow_pass(child);
     }
 }
