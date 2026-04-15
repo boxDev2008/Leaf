@@ -152,7 +152,9 @@ void leaf_raylib_render(Leaf_RenderCmdList cmd_list)
 
                 scissor_stack[scissor_count++] = rect;
 
-                EndScissorMode();
+                if (scissor_count > 0)
+                    EndScissorMode();
+
                 BeginScissorMode((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height);
                 break;
             }
