@@ -35,6 +35,23 @@ void leaf_raylib_initialize(const char *font_name)
     leaf_set_measure_text(leaf_raylib_measure_text);
 
     leaf_raylib_ctx.round_image_shader = LoadShaderFromMemory(NULL,
+    #ifdef EMSCRIPTEN
+        "#version 100\n"
+        "precision mediump float;"
+        "varying vec2 fragTexCoord;"
+        "uniform sampler2D texture0;"
+        "uniform float roundness;"
+        "uniform vec2 size;"
+        "void main() {"
+            "vec2 uv = fragTexCoord - 0.5;"
+            "vec2 pixel = uv * size;"
+            "float r = roundness;"
+            "vec2 q = abs(pixel) - (size * 0.5 - r);"
+            "float dist = length(max(q, 0.0)) - r;"
+            "if (dist > 0.0) discard;"
+                "gl_FragColor = texture2D(texture0, fragTexCoord);"
+        "}\0"
+    #else
         "#version 330\n"
         "in vec2 fragTexCoord;"
         "out vec4 finalColor;"
@@ -48,8 +65,9 @@ void leaf_raylib_initialize(const char *font_name)
             "vec2 q = abs(pixel) - (size * 0.5 - r);"
             "float dist = length(max(q, 0.0)) - r;"
             "if (dist > 0.0) discard;"
-            "finalColor = texture(texture0, fragTexCoord);"
+                "finalColor = texture(texture0, fragTexCoord);"
         "}\0"
+    #endif
     );
 
     leaf_raylib_ctx.roundness_location = GetShaderLocation(leaf_raylib_ctx.round_image_shader, "roundness");
@@ -65,7 +83,10 @@ void leaf_raylib_shutdown(void)
 
 void leaf_raylib_render(Leaf_RenderCmdList cmd_list)
 {
-    bool in_scissor = false;
+    #define SCISSOR_STACK_MAX 256
+    Rectangle scissor_stack[SCISSOR_STACK_MAX];
+    int scissor_count = 0;
+
     for (unsigned int i = 0; i < cmd_list.count; i++)
     {
         Leaf_RenderCmd cmd = cmd_list.cmds[i];
@@ -120,19 +141,34 @@ void leaf_raylib_render(Leaf_RenderCmdList cmd_list)
             EndShaderMode();
             break;
         }
-        case LEAF_RENDER_CMD_SCISSOR_PUSH:
-            if (in_scissor)
-                EndScissorMode();
-            else in_scissor = true;
-            BeginScissorMode((int)cmd.bounding_box.x, (int)cmd.bounding_box.y, (int)cmd.bounding_box.width, (int)cmd.bounding_box.height);
-            break;
-        case LEAF_RENDER_CMD_SCISSOR_POP:
-            if (in_scissor)
+            case LEAF_RENDER_CMD_SCISSOR_PUSH:
             {
+                Rectangle rect = {
+                    cmd.bounding_box.x,
+                    cmd.bounding_box.y,
+                    cmd.bounding_box.width,
+                    cmd.bounding_box.height
+                };
+
+                scissor_stack[scissor_count++] = rect;
+
                 EndScissorMode();
-                in_scissor = false;
+                BeginScissorMode((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height);
+                break;
             }
-            break;
+            case LEAF_RENDER_CMD_SCISSOR_POP:
+            {
+                scissor_count--;
+
+                EndScissorMode();
+
+                if (scissor_count > 0)
+                {
+                    Rectangle rect = scissor_stack[scissor_count - 1];
+                    BeginScissorMode((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height);
+                }
+                break;
+            }
         }
 
     }
