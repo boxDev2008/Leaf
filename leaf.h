@@ -787,7 +787,7 @@ static void leaf_position_and_render_nodes(Leaf_Node *parent)
     }
     children_total += leaf_max(parent->child_count - 1, 0) * config->child_gap;
 
-    float free_main = leaf_maxf(available_main - children_total, 0);
+    float free_main = available_main - children_total;
 
     float main_offset =
         LEAF_MAIN(h, config->padding.left, config->padding.top) +
@@ -849,7 +849,7 @@ static void leaf_position_and_render_nodes(Leaf_Node *parent)
             float layout_h = (child->type == LEAF_NODE_TYPE_TEXT) ? 0.f : child->bounding_box.height;
 
             float child_cross = LEAF_CROSS(h, layout_w, layout_h);
-            float free_cross = leaf_maxf(available_cross - child_cross, 0);
+            float free_cross = available_cross - child_cross;
 
             float cross_offset = LEAF_CROSS(h, config->padding.left, config->padding.top) +
                 LEAF_ALIGN_OFFSET(LEAF_CROSS(h, config->child_alignment.x, config->child_alignment.y),
