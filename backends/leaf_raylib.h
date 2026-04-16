@@ -10,7 +10,7 @@ void leaf_raylib_render(Leaf_RenderCmdList cmd_list);
 
 #ifdef LEAF_RAYLIB_IMPLEMENTATION
 
-struct
+static struct
 {
     Font small_font;
     Font large_font;
