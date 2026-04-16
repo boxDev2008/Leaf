@@ -9,7 +9,7 @@
 int main(void)
 {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-    InitWindow(1920, 1080, "Leaf Eaxmple");
+    InitWindow(1280, 720, "Leaf Eaxmple");
 
     leaf_initialize();
     leaf_raylib_initialize("./Quicksand-SemiBold.ttf");
@@ -24,7 +24,7 @@ int main(void)
         static bool show_debug = false;
         if (IsKeyPressed(KEY_F1))
             show_debug = !show_debug;
-        leaf_debug(show_debug, GetFrameTime(), GetMouseWheelMove())
+        leaf_debug(show_debug, 500, GetFrameTime(), GetMouseWheelMove())
         {
             leaf({
                 .id = leaf_id("Main Body"),
