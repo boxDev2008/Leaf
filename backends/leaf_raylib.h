@@ -15,7 +15,7 @@ static struct
     Font small_font;
     Font large_font;
     Shader round_image_shader;
-    int32_t roundness_location;
+    int32_t rounding_location;
     int32_t size_location;
 }
 leaf_raylib_ctx;
@@ -40,12 +40,12 @@ void leaf_raylib_initialize(const char *font_name)
         "precision mediump float;"
         "varying vec2 fragTexCoord;"
         "uniform sampler2D texture0;"
-        "uniform float roundness;"
+        "uniform float rounding;"
         "uniform vec2 size;"
         "void main() {"
             "vec2 uv = fragTexCoord - 0.5;"
             "vec2 pixel = uv * size;"
-            "float r = roundness;"
+            "float r = rounding;"
             "vec2 q = abs(pixel) - (size * 0.5 - r);"
             "float dist = length(max(q, 0.0)) - r;"
             "if (dist > 0.0) discard;"
@@ -56,12 +56,12 @@ void leaf_raylib_initialize(const char *font_name)
         "in vec2 fragTexCoord;"
         "out vec4 finalColor;"
         "uniform sampler2D texture0;"
-        "uniform float roundness;"
+        "uniform float rounding;"
         "uniform vec2 size;"
         "void main() {"
             "vec2 uv = fragTexCoord - 0.5;"
             "vec2 pixel = uv * size;"
-            "float r = roundness;"
+            "float r = rounding;"
             "vec2 q = abs(pixel) - (size * 0.5 - r);"
             "float dist = length(max(q, 0.0)) - r;"
             "if (dist > 0.0) discard;"
@@ -70,7 +70,7 @@ void leaf_raylib_initialize(const char *font_name)
     #endif
     );
 
-    leaf_raylib_ctx.roundness_location = GetShaderLocation(leaf_raylib_ctx.round_image_shader, "roundness");
+    leaf_raylib_ctx.rounding_location = GetShaderLocation(leaf_raylib_ctx.round_image_shader, "rounding");
     leaf_raylib_ctx.size_location = GetShaderLocation(leaf_raylib_ctx.round_image_shader, "size");
 }
 
@@ -97,9 +97,9 @@ void leaf_raylib_render(Leaf_RenderCmdList cmd_list)
             float min_side = (cmd.bounding_box.width < cmd.bounding_box.height)
                 ? cmd.bounding_box.width
                 : cmd.bounding_box.height;
-            float roundness = (min_side > 0) ? (cmd.rect.roundness / (min_side * 0.5f)) : 0.0f;
+            float rounding = (min_side > 0) ? (cmd.rect.rounding / (min_side * 0.5f)) : 0.0f;
             DrawRectangleRounded((Rectangle){cmd.bounding_box.x, cmd.bounding_box.y, cmd.bounding_box.width, cmd.bounding_box.height},
-                roundness, 8, (Color){cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a});
+                rounding, 8, (Color){cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a});
             break;
         }
         case LEAF_RENDER_CMD_RECT_LINES:
@@ -107,9 +107,9 @@ void leaf_raylib_render(Leaf_RenderCmdList cmd_list)
             float min_side = (cmd.bounding_box.width < cmd.bounding_box.height)
                 ? cmd.bounding_box.width
                 : cmd.bounding_box.height;
-            float roundness = (min_side > 0) ? (cmd.rect.roundness / (min_side * 0.5f)) : 0.0f;
+            float rounding = (min_side > 0) ? (cmd.rect.rounding / (min_side * 0.5f)) : 0.0f;
             DrawRectangleRoundedLinesEx((Rectangle){cmd.bounding_box.x, cmd.bounding_box.y, cmd.bounding_box.width, cmd.bounding_box.height},
-                roundness, 8, cmd.rect.line_width, (Color){cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a});
+                rounding, 8, cmd.rect.line_width, (Color){cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a});
             break;
         }
         case LEAF_RENDER_CMD_TEXT:
@@ -125,8 +125,8 @@ void leaf_raylib_render(Leaf_RenderCmdList cmd_list)
         case LEAF_RENDER_CMD_IMAGE:
         {
             Texture2D texture = *(Texture2D*)cmd.image.handle;
-            float max_roundness = (cmd.bounding_box.height > cmd.bounding_box.width ? cmd.bounding_box.width : cmd.bounding_box.height) * 0.5f;
-            float roundness = cmd.image.roundness > max_roundness ? max_roundness : cmd.image.roundness;
+            float max_rounding = (cmd.bounding_box.height > cmd.bounding_box.width ? cmd.bounding_box.width : cmd.bounding_box.height) * 0.5f;
+            float rounding = cmd.image.rounding > max_rounding ? max_rounding : cmd.image.rounding;
 
             Rectangle source = { 0, 0, (float)texture.width, (float)texture.height };
             Rectangle dest = { cmd.bounding_box.x, cmd.bounding_box.y, cmd.bounding_box.width, cmd.bounding_box.height };
@@ -134,7 +134,7 @@ void leaf_raylib_render(Leaf_RenderCmdList cmd_list)
             float size[2] = { cmd.bounding_box.width, cmd.bounding_box.height };
 
             BeginShaderMode(leaf_raylib_ctx.round_image_shader);
-            SetShaderValue(leaf_raylib_ctx.round_image_shader, leaf_raylib_ctx.roundness_location, &roundness, SHADER_UNIFORM_FLOAT);
+            SetShaderValue(leaf_raylib_ctx.round_image_shader, leaf_raylib_ctx.rounding_location, &rounding, SHADER_UNIFORM_FLOAT);
             SetShaderValue(leaf_raylib_ctx.round_image_shader, leaf_raylib_ctx.size_location, size, SHADER_UNIFORM_VEC2);
             DrawTexturePro(texture, source, dest, (Vector2){0, 0}, 0.0f,
                 (Color){cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a});
