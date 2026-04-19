@@ -44,7 +44,7 @@ static bool leaf_dock_menu_button(Leaf_ID id)
     leaf({
         .id = id,
         .sizing = {LEAF_PERCENT(0.3f), LEAF_PERCENT(0.3f)},
-        .color = leaf_rgba(255, 255, 255, is_hovered ? 150 : 100),
+        .color = LEAF_SOLID(leaf_rgba(255, 255, 255, is_hovered ? 150 : 100)),
         .roundness = 8.0f
     });
 }
@@ -84,7 +84,7 @@ static void leaf_render_window(Leaf_Window *window)
         .sizing = {LEAF_FIXED(window->size.x), LEAF_FIXED(window->size.y)},
         .floating_offset = {window->position.x, window->position.y},
         .border = {LEAF_DBG_BORDER, 1.0f},
-        .color = LEAF_DBG_BG1
+        .color = LEAF_SOLID(LEAF_DBG_BG1)
     })
     {
         const Leaf_ID titlebar_id = leaf_id_indexed(window->title, 1);
@@ -128,14 +128,14 @@ static void leaf_render_window(Leaf_Window *window)
         {
             leaf_text(window->title, {
                 .font_size = 20.0f,
-                .color = LEAF_DBG_TEXT_PRI
+                .color = LEAF_SOLID(LEAF_DBG_TEXT_PRI)
             });
         }
         leaf({
             .positioning = LEAF_POSITIONING_FLOATING_TO_PARENT,
             .floating_alignment = {LEAF_ALIGN_X_CENTER, LEAF_ALIGN_Y_CENTER},
             .sizing = {LEAF_PERCENT(0.3f), LEAF_FIT},
-            .color = leaf_rgb(0, 0, 0),
+            .color = LEAF_SOLID(leaf_rgb(0, 0, 0)),
             .aspect_ratio = 1.0f
         })
         {
@@ -173,7 +173,7 @@ int main(void)
             leaf({
                 .id = leaf_id("Main Body"),
                 .sizing = {LEAF_GROW, LEAF_GROW},
-                .color = leaf_rgb(37, 35, 33),
+                .color = LEAF_SOLID(leaf_rgb(37, 35, 33)),
                 .child_alignment = {LEAF_ALIGN_X_CENTER, LEAF_ALIGN_Y_CENTER},
             })
             {

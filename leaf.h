@@ -33,6 +33,30 @@ typedef struct
 }
 Leaf_Color;
 
+typedef uint8_t Leaf_ColorFillType;
+enum
+{
+    LEAF_SOLID_COLOR_FILL = 0,
+    LEAF_GRADIENT_LINEAR_COLOR_FILL,
+    LEAF_GRADIENT_DOT_COLOR_FILL
+};
+
+typedef struct
+{
+    Leaf_Color color1;
+    Leaf_Color color2;
+    float angle;
+    Leaf_ColorFillType type;
+}
+Leaf_ColorFill;
+
+#define LEAF_SOLID(c) (Leaf_ColorFill){ (c), {}, 0.0f, LEAF_SOLID_COLOR_FILL }
+#define LEAF_GRADIENT(c1, c2, angle) (Leaf_ColorFill){ (c1), (c2), angle, LEAF_GRADIENT_LINEAR_COLOR_FILL }
+#define LEAF_GRADIENT_DOT(c1, c2) (Leaf_ColorFill){ (c1), (c2), 0.0f, LEAF_GRADIENT_DOT_COLOR_FILL }
+
+#define LEAF_DEGREES(v) (v * 0.0174532925f)
+#define LEAF_RADIANS(v) (v)
+
 static inline Leaf_Color leaf_rgb(uint8_t r, uint8_t g, uint8_t b)
 {
     return (Leaf_Color){ r, g, b, 255 };
@@ -144,7 +168,7 @@ Leaf_Padding;
 
 typedef struct
 {
-    Leaf_Color color;
+    Leaf_ColorFill color;
     float width;
 }
 Leaf_Border;
@@ -164,7 +188,7 @@ typedef struct
     Leaf_Vec2 child_offset;
     Leaf_Border border;
     Leaf_Image image;
-    Leaf_Color color;
+    Leaf_ColorFill color;
     float child_gap;
     float rounding;
     float aspect_ratio;
@@ -185,7 +209,7 @@ enum
 
 typedef struct
 {
-    Leaf_Color color;
+    Leaf_ColorFill color;
     Leaf_TextAlignment alignment;
     float font_size;
 }
@@ -231,7 +255,7 @@ typedef struct
 
     Leaf_RenderCmdType type;
     Leaf_BoundingBox bounding_box;
-    Leaf_Color color;
+    Leaf_ColorFill color;
 }
 Leaf_RenderCmd;
 
@@ -590,6 +614,11 @@ static inline void leaf_apply_aspect_ratio(Leaf_Node *node)
         *h = *w / config->aspect_ratio;
 }
 
+static inline bool leaf_is_color_fill_empty(Leaf_ColorFill fill)
+{
+    return fill.color1.a == 0 && fill.color2.a == 0;
+}
+
 static void leaf_render_node(Leaf_Node *node)
 {
     switch (node->type)
@@ -597,7 +626,7 @@ static void leaf_render_node(Leaf_Node *node)
     case LEAF_NODE_TYPE_ELEMENT:
     {
         const Leaf_ElementConfig *config = &node->element.config;
-        if (config->color.a != 0)
+        if (!leaf_is_color_fill_empty(config->color))
         {
             if (config->image.handle)
             {
@@ -619,7 +648,7 @@ static void leaf_render_node(Leaf_Node *node)
                 });
             }
         }
-        if (config->border.color.a != 0)
+        if (!leaf_is_color_fill_empty(config->border.color))
             leaf_push_render_cmd((Leaf_RenderCmd){
                 .type = LEAF_RENDER_CMD_RECT_LINES,
                 .color = config->border.color,
@@ -632,7 +661,7 @@ static void leaf_render_node(Leaf_Node *node)
     case LEAF_NODE_TYPE_TEXT:
     {
         const Leaf_TextConfig *config = &node->text.config;
-        if (config->color.a != 0)
+        if (!leaf_is_color_fill_empty(config->color))
             leaf_push_render_cmd((Leaf_RenderCmd){
                 .type = LEAF_RENDER_CMD_TEXT,
                 .color = config->color,
@@ -919,7 +948,7 @@ Leaf_RenderCmdList leaf_end_frame(void)
         leaf_push_render_cmd((Leaf_RenderCmd){
             .type = LEAF_RENDER_CMD_RECT,
             .bounding_box = leaf_debug_selected_node->bounding_box,
-            .color = leaf_rgba(150, 170, 255, 100)
+            .color = LEAF_SOLID(leaf_rgba(150, 170, 255, 100))
         });
     }
 #endif
@@ -970,7 +999,7 @@ static void leaf_debug_child_tab(Leaf_Node *node, int32_t level)
     leaf({
         .id = id,
         .sizing = {LEAF_GROW, LEAF_FIT},
-        .color = hovered ? LEAF_DBG_SELECTED : leaf_debug_menu_secondary_tab ? LEAF_DBG_BG2 : LEAF_DBG_BG1,
+        .color = LEAF_SOLID(hovered ? LEAF_DBG_SELECTED : leaf_debug_menu_secondary_tab ? LEAF_DBG_BG2 : LEAF_DBG_BG1),
         .padding = {16.0f + level * 24.0f, 16, 16, 16},
         .direction = LEAF_LAYOUT_HORIZONAL,
         .child_gap = 32.0f
@@ -979,14 +1008,14 @@ static void leaf_debug_child_tab(Leaf_Node *node, int32_t level)
         leaf_text((node->type == LEAF_NODE_TYPE_ELEMENT && node->element.config.id.label) ?
             node->element.config.id.label : labels[node->type], {
             .font_size = LEAF_BASE_DEBUG_FONT_SIZE,
-            .color = LEAF_DBG_TEXT_PRI
+            .color = LEAF_SOLID(LEAF_DBG_TEXT_PRI)
         });
 
         if (node->type == LEAF_NODE_TYPE_TEXT)
         {
             leaf_text(node->text.text, {
                 .font_size = LEAF_BASE_DEBUG_FONT_SIZE,
-                .color = LEAF_DBG_TEXT_SEC
+                .color = LEAF_SOLID(LEAF_DBG_TEXT_SEC)
             });
         }
     }
@@ -1014,14 +1043,14 @@ void leaf_end_debug_context(float menu_width)
     Leaf_Node *inner_root = leaf_stack_top();
     leaf({
         .sizing = {LEAF_FIXED(menu_width * leaf_debug_menu_show_factor), LEAF_GROW},
-        .color = LEAF_DBG_BG1,
-        .border = {LEAF_DBG_BORDER, 1.0f}
+        .color = LEAF_SOLID(LEAF_DBG_BG1),
+        .border = {LEAF_SOLID(LEAF_DBG_BORDER), 1.0f}
     })
     {
         leaf({
             .id = leaf_id("__leaf_debug_menu"),
             .sizing = {LEAF_GROW, LEAF_PERCENT(0.6f)},
-            .color = LEAF_DBG_BG1,
+            .color = LEAF_SOLID(LEAF_DBG_BG1),
             .child_offset = {0.0f, leaf_debug_scroll_offset_smooth}
         })
         {
@@ -1032,12 +1061,12 @@ void leaf_end_debug_context(float menu_width)
             {
                 leaf_text("Leaf Debug Tools", {
                     .font_size = LEAF_BASE_DEBUG_FONT_SIZE,
-                    .color = LEAF_DBG_TEXT_PRI
+                    .color = LEAF_SOLID(LEAF_DBG_TEXT_PRI)
                 });
             }
             leaf({
                 .sizing = { LEAF_GROW, LEAF_FIXED(1.0f) },
-                .color = LEAF_DBG_BORDER
+                .color = LEAF_SOLID(LEAF_DBG_BORDER)
             });
 
             leaf_debug_child_tab(inner_root, 0);
@@ -1045,20 +1074,20 @@ void leaf_end_debug_context(float menu_width)
 
         leaf({
             .sizing = {LEAF_GROW, LEAF_FIXED(1.0f)},
-            .color = LEAF_DBG_BG3,
+            .color = LEAF_SOLID(LEAF_DBG_BG3),
         });
 
         leaf({
             .sizing = {LEAF_GROW, LEAF_GROW},
             .padding = {16, 16, 16, 16},
-            .color = LEAF_DBG_BG1,
+            .color = LEAF_SOLID(LEAF_DBG_BG1),
             .child_gap = 20.0f
         })
         {
             if (!leaf_debug_selected_node)
                 continue;
-            const Leaf_TextConfig title = { .font_size = LEAF_BASE_DEBUG_FONT_SIZE, .color = LEAF_DBG_TEXT_SEC };
-            const Leaf_TextConfig data = { .font_size = LEAF_BASE_DEBUG_FONT_SIZE, .color = LEAF_DBG_TEXT_PRI };
+            const Leaf_TextConfig title = { .font_size = LEAF_BASE_DEBUG_FONT_SIZE, .color = LEAF_SOLID(LEAF_DBG_TEXT_SEC) };
+            const Leaf_TextConfig data = { .font_size = LEAF_BASE_DEBUG_FONT_SIZE, .color = LEAF_SOLID(LEAF_DBG_TEXT_PRI) };
 
             leaf({})
             {

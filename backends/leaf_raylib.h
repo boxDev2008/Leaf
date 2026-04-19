@@ -10,13 +10,26 @@ void leaf_raylib_render(Leaf_RenderCmdList cmd_list);
 
 #ifdef LEAF_RAYLIB_IMPLEMENTATION
 
+#include "rlgl.h"
+
 static struct
 {
     Font small_font;
     Font large_font;
+
     Shader round_image_shader;
     int32_t rounding_location;
     int32_t size_location;
+
+    Shader gradient_shader;
+    int32_t grad_color1_location;
+    int32_t grad_color2_location;
+    int32_t grad_angle_location;
+    int32_t grad_rounding_location;
+    int32_t grad_size_location;
+    int32_t grad_line_width_location;
+    int32_t grad_draw_lines_location;
+    int32_t grad_fill_type_location;
 }
 leaf_raylib_ctx;
 
@@ -24,6 +37,26 @@ static Leaf_Dimensions leaf_raylib_measure_text(const char *text, uint32_t lengt
 {
     Vector2 size = MeasureTextEx(config->font_size > 32.0f ? leaf_raylib_ctx.large_font : leaf_raylib_ctx.small_font, text, config->font_size, 2);
     return (Leaf_Dimensions){ size.x, size.y };
+}
+
+static inline void leaf_color_to_vec4(Leaf_Color c, float out[4])
+{
+    out[0] = c.r / 255.0f;
+    out[1] = c.g / 255.0f;
+    out[2] = c.b / 255.0f;
+    out[3] = c.a / 255.0f;
+}
+
+static void leaf_rlgl_draw_rect(float x, float y, float w, float h)
+{
+    rlBegin(RL_QUADS);
+        rlNormal3f(0.0f, 0.0f, 1.0f);
+
+        rlTexCoord2f(0.0f, 0.0f); rlVertex2f(x,     y);
+        rlTexCoord2f(0.0f, 1.0f); rlVertex2f(x,     y + h);
+        rlTexCoord2f(1.0f, 1.0f); rlVertex2f(x + w, y + h);
+        rlTexCoord2f(1.0f, 0.0f); rlVertex2f(x + w, y);
+    rlEnd();
 }
 
 void leaf_raylib_initialize(const char *font_name)
@@ -49,7 +82,7 @@ void leaf_raylib_initialize(const char *font_name)
             "vec2 q = abs(pixel) - (size * 0.5 - r);"
             "float dist = length(max(q, 0.0)) - r;"
             "if (dist > 0.0) discard;"
-                "gl_FragColor = texture2D(texture0, fragTexCoord);"
+            "gl_FragColor = texture2D(texture0, fragTexCoord);"
         "}\0"
     #else
         "#version 330\n"
@@ -65,20 +98,129 @@ void leaf_raylib_initialize(const char *font_name)
             "vec2 q = abs(pixel) - (size * 0.5 - r);"
             "float dist = length(max(q, 0.0)) - r;"
             "if (dist > 0.0) discard;"
-                "finalColor = texture(texture0, fragTexCoord);"
+            "finalColor = texture(texture0, fragTexCoord);"
         "}\0"
     #endif
     );
-
     leaf_raylib_ctx.rounding_location = GetShaderLocation(leaf_raylib_ctx.round_image_shader, "rounding");
-    leaf_raylib_ctx.size_location = GetShaderLocation(leaf_raylib_ctx.round_image_shader, "size");
+    leaf_raylib_ctx.size_location     = GetShaderLocation(leaf_raylib_ctx.round_image_shader, "size");
+
+    leaf_raylib_ctx.gradient_shader = LoadShaderFromMemory(NULL,
+    #ifdef EMSCRIPTEN
+        "#version 100\n"
+        "precision mediump float;"
+        "varying vec2 fragTexCoord;"
+        "uniform vec4 color1;"
+        "uniform vec4 color2;"
+        "uniform float angle;"
+        "uniform float rounding;"
+        "uniform vec2 size;"
+        "uniform float lineWidth;"
+        "uniform int drawLines;"
+        "uniform int fillType;"
+        "void main() {"
+            "vec2 pixel = (fragTexCoord - 0.5) * size;"
+            "float r = rounding;"
+            "vec2 q = abs(pixel) - (size * 0.5 - r);"
+            "float dist = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;"
+            "if (dist > 0.5) discard;"
+            "if (drawLines == 1 && dist < -lineWidth) discard;"
+            "float t;"
+            "if (fillType == 2) {"
+                "t = clamp(length(fragTexCoord - 0.5) * 2.0, 0.0, 1.0);"
+            "} else {"
+                "vec2 dir = vec2(cos(angle), sin(angle));"
+                "t = clamp(dot(fragTexCoord - 0.5, dir) + 0.5, 0.0, 1.0);"
+            "}"
+            "gl_FragColor = mix(color1, color2, t);"
+        "}\0"
+    #else
+        "#version 330\n"
+        "in vec2 fragTexCoord;"
+        "out vec4 finalColor;"
+        "uniform vec4 color1;"
+        "uniform vec4 color2;"
+        "uniform float angle;"
+        "uniform float rounding;"
+        "uniform vec2 size;"
+        "uniform float lineWidth;"
+        "uniform int drawLines;"
+        "uniform int fillType;"
+        "void main() {"
+            "vec2 pixel = (fragTexCoord - 0.5) * size;"
+            "float r = rounding;"
+            "vec2 q = abs(pixel) - (size * 0.5 - r);"
+            "float dist = length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - r;"
+            "if (dist > 0.5) discard;"
+            "if (drawLines == 1 && dist < -lineWidth) discard;"
+            "float t;"
+            "if (fillType == 2) {"
+                "t = clamp(length(fragTexCoord - 0.5) * 2.0, 0.0, 1.0);"
+            "} else {"
+                "vec2 dir = vec2(cos(angle), sin(angle));"
+                "t = clamp(dot(fragTexCoord - 0.5, dir) + 0.5, 0.0, 1.0);"
+            "}"
+            "finalColor = mix(color1, color2, t);"
+        "}\0"
+    #endif
+    );
+    leaf_raylib_ctx.grad_color1_location     = GetShaderLocation(leaf_raylib_ctx.gradient_shader, "color1");
+    leaf_raylib_ctx.grad_color2_location     = GetShaderLocation(leaf_raylib_ctx.gradient_shader, "color2");
+    leaf_raylib_ctx.grad_angle_location      = GetShaderLocation(leaf_raylib_ctx.gradient_shader, "angle");
+    leaf_raylib_ctx.grad_rounding_location   = GetShaderLocation(leaf_raylib_ctx.gradient_shader, "rounding");
+    leaf_raylib_ctx.grad_size_location       = GetShaderLocation(leaf_raylib_ctx.gradient_shader, "size");
+    leaf_raylib_ctx.grad_line_width_location = GetShaderLocation(leaf_raylib_ctx.gradient_shader, "lineWidth");
+    leaf_raylib_ctx.grad_draw_lines_location = GetShaderLocation(leaf_raylib_ctx.gradient_shader, "drawLines");
+    leaf_raylib_ctx.grad_fill_type_location  = GetShaderLocation(leaf_raylib_ctx.gradient_shader, "fillType");
 }
 
 void leaf_raylib_shutdown(void)
 {
+    UnloadShader(leaf_raylib_ctx.gradient_shader);
     UnloadShader(leaf_raylib_ctx.round_image_shader);
     UnloadFont(leaf_raylib_ctx.large_font);
     UnloadFont(leaf_raylib_ctx.small_font);
+}
+
+static void leaf_raylib_draw_fill_rect(Leaf_BoundingBox bb, Leaf_ColorFill fill, float rounding, float line_width)
+{
+    float min_side = bb.width < bb.height ? bb.width : bb.height;
+    float rounding_ratio = (min_side > 0) ? (rounding / (min_side * 0.5f)) : 0.0f;
+    Rectangle rect = { bb.x, bb.y, bb.width, bb.height };
+
+    if (fill.type == LEAF_SOLID_COLOR_FILL)
+    {
+        Leaf_Color c = fill.color1;
+        Color rc = { c.r, c.g, c.b, c.a };
+        if (line_width > 0.0f)
+            DrawRectangleRoundedLinesEx(rect, rounding_ratio, 8, line_width, rc);
+        else
+            DrawRectangleRounded(rect, rounding_ratio, 8, rc);
+        return;
+    }
+
+    float c1[4], c2[4];
+    leaf_color_to_vec4(fill.color1, c1);
+    leaf_color_to_vec4(fill.color2, c2);
+
+    float size[2]  = { bb.width, bb.height };
+    float angle    = fill.angle;
+    int   lines    = (line_width > 0.0f) ? 1 : 0;
+    int   filltype = (int)fill.type;
+
+    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_color1_location,     c1,         SHADER_UNIFORM_VEC4);
+    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_color2_location,     c2,         SHADER_UNIFORM_VEC4);
+    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_angle_location,      &angle,     SHADER_UNIFORM_FLOAT);
+    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_rounding_location,   &rounding,  SHADER_UNIFORM_FLOAT);
+    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_size_location,       size,       SHADER_UNIFORM_VEC2);
+    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_line_width_location, &line_width,SHADER_UNIFORM_FLOAT);
+    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_draw_lines_location, &lines,     SHADER_UNIFORM_INT);
+    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_fill_type_location,  &filltype,  SHADER_UNIFORM_INT);
+
+    BeginShaderMode(leaf_raylib_ctx.gradient_shader);
+    rlSetTexture(rlGetTextureIdDefault());
+    leaf_rlgl_draw_rect(bb.x, bb.y, bb.width, bb.height);
+    EndShaderMode();
 }
 
 void leaf_raylib_render(Leaf_RenderCmdList cmd_list)
@@ -93,86 +235,68 @@ void leaf_raylib_render(Leaf_RenderCmdList cmd_list)
         switch (cmd.type)
         {
         case LEAF_RENDER_CMD_RECT:
-        {
-            float min_side = (cmd.bounding_box.width < cmd.bounding_box.height)
-                ? cmd.bounding_box.width
-                : cmd.bounding_box.height;
-            float rounding = (min_side > 0) ? (cmd.rect.rounding / (min_side * 0.5f)) : 0.0f;
-            DrawRectangleRounded((Rectangle){cmd.bounding_box.x, cmd.bounding_box.y, cmd.bounding_box.width, cmd.bounding_box.height},
-                rounding, 8, (Color){cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a});
+            leaf_raylib_draw_fill_rect(cmd.bounding_box, cmd.color, cmd.rect.rounding, 0.0f);
             break;
-        }
+
         case LEAF_RENDER_CMD_RECT_LINES:
-        {
-            float min_side = (cmd.bounding_box.width < cmd.bounding_box.height)
-                ? cmd.bounding_box.width
-                : cmd.bounding_box.height;
-            float rounding = (min_side > 0) ? (cmd.rect.rounding / (min_side * 0.5f)) : 0.0f;
-            DrawRectangleRoundedLinesEx((Rectangle){cmd.bounding_box.x, cmd.bounding_box.y, cmd.bounding_box.width, cmd.bounding_box.height},
-                rounding, 8, cmd.rect.line_width, (Color){cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a});
+            leaf_raylib_draw_fill_rect(cmd.bounding_box, cmd.color, cmd.rect.rounding, cmd.rect.line_width);
             break;
-        }
+
         case LEAF_RENDER_CMD_TEXT:
         {
             char tmp[1024];
             uint32_t len = cmd.text.length < sizeof(tmp) - 1 ? cmd.text.length : sizeof(tmp) - 1;
             memcpy(tmp, cmd.text.text, len);
             tmp[len] = '\0';
-            DrawTextEx(cmd.text.font_size > 32.0f ? leaf_raylib_ctx.large_font : leaf_raylib_ctx.small_font, tmp, (Vector2){cmd.bounding_box.x, cmd.bounding_box.y},
-                cmd.text.font_size, 2, (Color){cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a});
+            Leaf_Color c = cmd.color.color1;
+            DrawTextEx(
+                cmd.text.font_size > 32.0f ? leaf_raylib_ctx.large_font : leaf_raylib_ctx.small_font,
+                tmp,
+                (Vector2){ cmd.bounding_box.x, cmd.bounding_box.y },
+                cmd.text.font_size, 2,
+                (Color){ c.r, c.g, c.b, c.a });
             break;
         }
+
         case LEAF_RENDER_CMD_IMAGE:
         {
             Texture2D texture = *(Texture2D*)cmd.image.handle;
-            float max_rounding = (cmd.bounding_box.height > cmd.bounding_box.width ? cmd.bounding_box.width : cmd.bounding_box.height) * 0.5f;
+            float max_rounding = (cmd.bounding_box.height > cmd.bounding_box.width
+                ? cmd.bounding_box.width : cmd.bounding_box.height) * 0.5f;
             float rounding = cmd.image.rounding > max_rounding ? max_rounding : cmd.image.rounding;
-
             Rectangle source = { 0, 0, (float)texture.width, (float)texture.height };
-            Rectangle dest = { cmd.bounding_box.x, cmd.bounding_box.y, cmd.bounding_box.width, cmd.bounding_box.height };
-
-            float size[2] = { cmd.bounding_box.width, cmd.bounding_box.height };
-
+            Rectangle dest   = { cmd.bounding_box.x, cmd.bounding_box.y, cmd.bounding_box.width, cmd.bounding_box.height };
+            float size[2]    = { cmd.bounding_box.width, cmd.bounding_box.height };
+            Leaf_Color c     = cmd.color.color1;
             BeginShaderMode(leaf_raylib_ctx.round_image_shader);
             SetShaderValue(leaf_raylib_ctx.round_image_shader, leaf_raylib_ctx.rounding_location, &rounding, SHADER_UNIFORM_FLOAT);
             SetShaderValue(leaf_raylib_ctx.round_image_shader, leaf_raylib_ctx.size_location, size, SHADER_UNIFORM_VEC2);
-            DrawTexturePro(texture, source, dest, (Vector2){0, 0}, 0.0f,
-                (Color){cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a});
+            DrawTexturePro(texture, source, dest, (Vector2){0, 0}, 0.0f, (Color){ c.r, c.g, c.b, c.a });
             EndShaderMode();
             break;
         }
-            case LEAF_RENDER_CMD_SCISSOR_PUSH:
-            {
-                Rectangle rect = {
-                    cmd.bounding_box.x,
-                    cmd.bounding_box.y,
-                    cmd.bounding_box.width,
-                    cmd.bounding_box.height
-                };
 
-                scissor_stack[scissor_count++] = rect;
-
-                if (scissor_count > 0)
-                    EndScissorMode();
-
-                BeginScissorMode((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height);
-                break;
-            }
-            case LEAF_RENDER_CMD_SCISSOR_POP:
-            {
-                scissor_count--;
-
-                EndScissorMode();
-
-                if (scissor_count > 0)
-                {
-                    Rectangle rect = scissor_stack[scissor_count - 1];
-                    BeginScissorMode((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height);
-                }
-                break;
-            }
+        case LEAF_RENDER_CMD_SCISSOR_PUSH:
+        {
+            Rectangle rect = { cmd.bounding_box.x, cmd.bounding_box.y, cmd.bounding_box.width, cmd.bounding_box.height };
+            scissor_stack[scissor_count++] = rect;
+            if (scissor_count > 0) EndScissorMode();
+            BeginScissorMode((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height);
+            break;
         }
 
+        case LEAF_RENDER_CMD_SCISSOR_POP:
+        {
+            scissor_count--;
+            EndScissorMode();
+            if (scissor_count > 0)
+            {
+                Rectangle rect = scissor_stack[scissor_count - 1];
+                BeginScissorMode((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height);
+            }
+            break;
+        }
+        }
     }
 }
 #endif
