@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -1376,9 +1377,9 @@ void leaf_end_debug_context(float menu_width)
     }
     leaf_end_element();
 }
-#endif
+#endif // LEAF_NO_DEBUG_TOOLS
 
-#endif
+#endif // LEAF_IMPLEMENTATION
 
 #ifdef __cplusplus
 }
