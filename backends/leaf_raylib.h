@@ -35,8 +35,36 @@ leaf_raylib_ctx;
 
 static Leaf_Dimensions leaf_raylib_measure_text(const char *text, uint32_t length, const Leaf_TextConfig *config)
 {
-    Vector2 size = MeasureTextEx(config->font_size > 32.0f ? leaf_raylib_ctx.large_font : leaf_raylib_ctx.small_font, text, config->font_size, 2);
-    return (Leaf_Dimensions){ size.x, size.y };
+    float max_text_width = 0.0f;
+    float line_text_width = 0.0f;
+
+    Font font_to_use = config->font_size > 32.0f ? leaf_raylib_ctx.large_font : leaf_raylib_ctx.small_font;
+    if (!font_to_use.glyphs) font_to_use = GetFontDefault();
+
+    float scale_factor = config->font_size / (float)font_to_use.baseSize;
+
+    for (uint32_t i = 0; i < length; i++)
+    {
+        if (text[i] == '\n')
+        {
+            if (line_text_width > max_text_width) max_text_width = line_text_width;
+            line_text_width = 0.0f;
+            continue;
+        }
+
+        int index = text[i] - 32;
+        if (font_to_use.glyphs[index].advanceX != 0)
+            line_text_width += font_to_use.glyphs[index].advanceX;
+        else
+            line_text_width += font_to_use.recs[index].width + font_to_use.glyphs[index].offsetX;
+    }
+
+    if (line_text_width > max_text_width) max_text_width = line_text_width;
+
+    return (Leaf_Dimensions){
+        max_text_width * scale_factor,
+        config->font_size
+    };
 }
 
 static inline void leaf_color_to_vec4(Leaf_Color c, float out[4])
@@ -244,16 +272,12 @@ void leaf_raylib_render(Leaf_RenderCmdList cmd_list)
 
         case LEAF_RENDER_CMD_TEXT:
         {
-            char tmp[1024];
-            uint32_t len = cmd.text.length < sizeof(tmp) - 1 ? cmd.text.length : sizeof(tmp) - 1;
-            memcpy(tmp, cmd.text.text, len);
-            tmp[len] = '\0';
             Leaf_Color c = cmd.color.color1;
             DrawTextEx(
                 cmd.text.font_size > 32.0f ? leaf_raylib_ctx.large_font : leaf_raylib_ctx.small_font,
-                tmp,
+                cmd.text.text,
                 (Vector2){ cmd.bounding_box.x, cmd.bounding_box.y },
-                cmd.text.font_size, 2,
+                cmd.text.font_size, 0,
                 (Color){ c.r, c.g, c.b, c.a });
             break;
         }
@@ -296,6 +320,10 @@ void leaf_raylib_render(Leaf_RenderCmdList cmd_list)
             }
             break;
         }
+
+        case LEAF_RENDER_CMD_CUSTOM:
+            cmd.custom.draw(cmd.bounding_box, cmd.custom.user_data);
+            break;
         }
     }
 }
