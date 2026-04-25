@@ -28,19 +28,19 @@ int main(void)
         {
             leaf({
                 .id = leaf_id("Main Body"),
-                .sizing = {LEAF_GROW, LEAF_GROW},
-                .color = LEAF_SOLID(leaf_rgb(37, 35, 33)),
+                .sizing = {LEAF_SIZING_GROW, LEAF_SIZING_GROW},
+                .color = leaf_solid(leaf_rgb(37, 35, 33)),
                 .child_alignment = {LEAF_ALIGN_X_CENTER, LEAF_ALIGN_Y_CENTER},
             })
             {
                 leaf_text("Hello, Leaf!",{
                     .font_size = 128.0f,
-                    .color = LEAF_SOLID(leaf_rgb(237, 226, 231)),
+                    .color = leaf_solid(leaf_rgb(237, 226, 231)),
                     .alignment = LEAF_TEXT_ALIGN_CENTER
                 });
                 leaf_text("[Secondary title] :3",{
                     .font_size = 48.0f,
-                    .color = LEAF_SOLID(leaf_rgb(141, 133, 135)),
+                    .color = leaf_solid(leaf_rgb(141, 133, 135)),
                     .alignment = LEAF_TEXT_ALIGN_CENTER
                 });
             }
