@@ -12,7 +12,10 @@ int main(void)
     InitWindow(1280, 720, "Leaf Eaxmple");
 
     leaf_initialize();
-    leaf_raylib_initialize("./fonts/Quicksand-SemiBold.ttf");
+    Leaf_RaylibFont fonts[] = {
+        leaf_raylib_load_font("./fonts/Quicksand-SemiBold.ttf", NULL, 0)
+    };
+    leaf_raylib_initialize(fonts);
 
     while (!WindowShouldClose())
     {
@@ -51,6 +54,7 @@ int main(void)
         EndDrawing();
     }
 
+    leaf_raylib_unload_font(fonts[0]);
     leaf_raylib_shutdown();
     leaf_shutdown();
     CloseWindow();

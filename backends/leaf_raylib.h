@@ -4,7 +4,17 @@
 extern "C" {
 #endif
 
-void leaf_raylib_initialize(const char *font_name);
+typedef struct
+{
+    Font small;
+    Font large;
+}
+Leaf_RaylibFont;
+
+Leaf_RaylibFont leaf_raylib_load_font(const char *font_path, int *codepoints, int codepoint_count);
+void leaf_raylib_unload_font(Leaf_RaylibFont font);
+
+void leaf_raylib_initialize(Leaf_RaylibFont *fonts);
 void leaf_raylib_shutdown(void);
 void leaf_raylib_render(Leaf_RenderCmdList cmd_list);
 
@@ -14,8 +24,7 @@ void leaf_raylib_render(Leaf_RenderCmdList cmd_list);
 
 static struct
 {
-    Font small_font;
-    Font large_font;
+    Leaf_RaylibFont *fonts;
 
     Shader round_image_shader;
     int32_t rounding_location;
@@ -33,30 +42,43 @@ static struct
 }
 leaf_raylib_ctx;
 
+static inline Font leaf_raylib_get_base_font(float font_size, uint32_t font_id)
+{
+    Leaf_RaylibFont font = leaf_raylib_ctx.fonts[font_id];
+    return font_size > 32.0f ? font.large : font.small;
+}
+
 static Leaf_Dimensions leaf_raylib_measure_text(const char *text, uint32_t length, const Leaf_TextConfig *config)
 {
     float max_text_width = 0.0f;
     float line_text_width = 0.0f;
 
-    Font font_to_use = config->font_size > 32.0f ? leaf_raylib_ctx.large_font : leaf_raylib_ctx.small_font;
+    Font font_to_use = leaf_raylib_get_base_font(config->font_size, config->font_id);
     if (!font_to_use.glyphs) font_to_use = GetFontDefault();
 
     float scale_factor = config->font_size / (float)font_to_use.baseSize;
 
-    for (uint32_t i = 0; i < length; i++)
+    int i = 0;
+    while (i < (int)length)
     {
-        if (text[i] == '\n')
+        int codepointByteCount = 0;
+        int codepoint = GetCodepointNext(&text[i], &codepointByteCount);
+
+        if (codepoint == '\n')
         {
             if (line_text_width > max_text_width) max_text_width = line_text_width;
             line_text_width = 0.0f;
-            continue;
+        }
+        else
+        {
+            int index = GetGlyphIndex(font_to_use, codepoint);
+            if (font_to_use.glyphs[index].advanceX != 0)
+                line_text_width += font_to_use.glyphs[index].advanceX;
+            else
+                line_text_width += font_to_use.recs[index].width + font_to_use.glyphs[index].offsetX;
         }
 
-        int index = text[i] - 32;
-        if (font_to_use.glyphs[index].advanceX != 0)
-            line_text_width += font_to_use.glyphs[index].advanceX;
-        else
-            line_text_width += font_to_use.recs[index].width + font_to_use.glyphs[index].offsetX;
+        i += codepointByteCount;
     }
 
     if (line_text_width > max_text_width) max_text_width = line_text_width;
@@ -78,21 +100,34 @@ static inline void leaf_color_to_vec4(Leaf_Color c, float out[4])
 static void leaf_rlgl_draw_rect(float x, float y, float w, float h)
 {
     rlBegin(RL_QUADS);
-        rlNormal3f(0.0f, 0.0f, 1.0f);
+    rlNormal3f(0.0f, 0.0f, 1.0f);
 
-        rlTexCoord2f(0.0f, 0.0f); rlVertex2f(x,     y);
-        rlTexCoord2f(0.0f, 1.0f); rlVertex2f(x,     y + h);
-        rlTexCoord2f(1.0f, 1.0f); rlVertex2f(x + w, y + h);
-        rlTexCoord2f(1.0f, 0.0f); rlVertex2f(x + w, y);
+    rlTexCoord2f(0.0f, 0.0f); rlVertex2f(x,     y);
+    rlTexCoord2f(0.0f, 1.0f); rlVertex2f(x,     y + h);
+    rlTexCoord2f(1.0f, 1.0f); rlVertex2f(x + w, y + h);
+    rlTexCoord2f(1.0f, 0.0f); rlVertex2f(x + w, y);
     rlEnd();
 }
 
-void leaf_raylib_initialize(const char *font_name)
+Leaf_RaylibFont leaf_raylib_load_font(const char *font_path, int *codepoints, int codepoint_count)
 {
-    leaf_raylib_ctx.small_font = LoadFontEx(font_name, 32, NULL, 0);
-    leaf_raylib_ctx.large_font = LoadFontEx(font_name, 256, NULL, 0);
-    SetTextureFilter(leaf_raylib_ctx.small_font.texture, TEXTURE_FILTER_TRILINEAR);
-    SetTextureFilter(leaf_raylib_ctx.large_font.texture, TEXTURE_FILTER_TRILINEAR);
+    Leaf_RaylibFont font;
+    font.small = LoadFontEx(font_path, 32,  codepoints, codepoint_count);
+    font.large = LoadFontEx(font_path, 256, codepoints, codepoint_count);
+    SetTextureFilter(font.small.texture, TEXTURE_FILTER_TRILINEAR);
+    SetTextureFilter(font.large.texture, TEXTURE_FILTER_TRILINEAR);
+    return font;
+}
+
+void leaf_raylib_unload_font(Leaf_RaylibFont font)
+{
+    UnloadFont(font.large);
+    UnloadFont(font.small);
+}
+
+void leaf_raylib_initialize(Leaf_RaylibFont *fonts)
+{
+    leaf_raylib_ctx.fonts = fonts;
     leaf_set_measure_text(leaf_raylib_measure_text);
 
     leaf_raylib_ctx.round_image_shader = LoadShaderFromMemory(NULL,
@@ -206,8 +241,6 @@ void leaf_raylib_shutdown(void)
 {
     UnloadShader(leaf_raylib_ctx.gradient_shader);
     UnloadShader(leaf_raylib_ctx.round_image_shader);
-    UnloadFont(leaf_raylib_ctx.large_font);
-    UnloadFont(leaf_raylib_ctx.small_font);
 }
 
 static void leaf_raylib_draw_fill_rect(Leaf_BoundingBox bb, Leaf_ColorFill fill, float rounding, float line_width)
@@ -274,7 +307,7 @@ void leaf_raylib_render(Leaf_RenderCmdList cmd_list)
         {
             Leaf_Color c = cmd.color.color1;
             DrawTextEx(
-                cmd.text.font_size > 32.0f ? leaf_raylib_ctx.large_font : leaf_raylib_ctx.small_font,
+                leaf_raylib_get_base_font(cmd.text.font_size, cmd.text.font_id),
                 cmd.text.text,
                 (Vector2){ cmd.bounding_box.x, cmd.bounding_box.y },
                 cmd.text.font_size, 0,

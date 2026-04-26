@@ -249,6 +249,7 @@ typedef struct
 {
     Leaf_ColorFill color;
     float font_size;
+    uint32_t font_id;
     Leaf_TextAlignment alignment;
     Leaf_TextWrapMode wrap_mode;
 }
@@ -280,8 +281,8 @@ typedef struct
         struct
         {
             const char *text;
-            uint32_t length;
             float font_size;
+            uint32_t font_id;
         }
         text;
 
@@ -390,7 +391,7 @@ struct Leaf_Node
         {
             Leaf_TextConfig config;
             const char *text;
-            uint32_t length;
+            uint32_t size;
         }
         text;
     };
@@ -592,9 +593,9 @@ void __leaf_text(const char *text, Leaf_TextConfig config)
     node->type = LEAF_NODE_TYPE_TEXT;
     node->text.config = config;
     node->text.text = text;
-    node->text.length = (uint32_t)strlen(text);
+    node->text.size = (uint32_t)strlen(text);
 
-    Leaf_Dimensions size = leaf_ctx->measure_text(text, node->text.length, &config);
+    Leaf_Dimensions size = leaf_ctx->measure_text(text, node->text.size, &config);
     node->bounding_box.width  = size.width;
     node->bounding_box.height = size.height;
 
@@ -746,30 +747,41 @@ static void leaf_render_node(Leaf_Node *node)
                 .color = config->color,
                 .bounding_box = node->bounding_box,
                 .text.text = node->text.text,
-                .text.length = node->text.length,
-                .text.font_size = config->font_size
+                .text.font_size = config->font_size,
+                .text.font_id = config->font_id
             });
         break;
     }
     }
 }
 
-static const char *leaf_cache_str(const char *src, uint32_t len)
+static const char *leaf_cache_str(const char *src, uint32_t size)
 {
-    LEAF_ASSERT_NULL(leaf_ctx->wrap_cache_cursor + len + 1 <= LEAF_CONFIG_TEXT_WRAP_CACHE,
+    LEAF_ASSERT_NULL(leaf_ctx->wrap_cache_cursor + size + 1 <= LEAF_CONFIG_TEXT_WRAP_CACHE,
         "Text wrap cache limit exceeded. Increase LEAF_CONFIG_TEXT_WRAP_CACHE.");
     char *dst = &leaf_ctx->text_wrap_cache[leaf_ctx->wrap_cache_cursor];
-    memcpy(dst, src, len);
-    dst[len] = '\0';
-    leaf_ctx->wrap_cache_cursor += len + 1;
+    memcpy(dst, src, size);
+    dst[size] = '\0';
+    leaf_ctx->wrap_cache_cursor += size + 1;
     return dst;
+}
+
+static inline void leaf_char_from_utf8(const char *str, uint32_t i, int *out_cp, int *out_bytes)
+{
+    unsigned char c = (unsigned char)str[i];
+    if      (c < 0x80) { *out_cp = c;        *out_bytes = 1; }
+    else if (c < 0xE0) { *out_cp = c & 0x1F; *out_bytes = 2; }
+    else if (c < 0xF0) { *out_cp = c & 0x0F; *out_bytes = 3; }
+    else               { *out_cp = c & 0x07; *out_bytes = 4; }
+    for (int b = 1; b < *out_bytes; b++)
+        *out_cp = (*out_cp << 6) | ((unsigned char)str[i + b] & 0x3F);
 }
 
 static Leaf_Node *leaf_wrap_text_node(Leaf_Node *parent, Leaf_Node *node, float avail_width)
 {
     const Leaf_TextConfig *cfg  = &node->text.config;
     const char *text = node->text.text;
-    uint32_t len = node->text.length;
+    uint32_t len = node->text.size;
     bool word_mode = cfg->wrap_mode == LEAF_TEXT_WRAP_MODE_WORD;
 
     Leaf_Node *last_inserted = node;
@@ -779,23 +791,31 @@ static Leaf_Node *leaf_wrap_text_node(Leaf_Node *parent, Leaf_Node *node, float 
     {
         uint32_t line_end = line_start;
         uint32_t last_word_break = line_start;
+        uint32_t i = line_start;
 
-        for (uint32_t i = line_start; i <= len; i++)
+        while (i <= len)
         {
-            if (word_mode && (text[i] == ' ' || text[i] == '\0' || i == len))
+            int cp = 0, cp_bytes = 1;
+            if (i < len)
+                leaf_char_from_utf8(text, i, &cp, &cp_bytes);
+
+            if (word_mode && (i == len || cp == ' '))
                 last_word_break = i;
 
-            Leaf_Dimensions d = leaf_ctx->measure_text(
-                text + line_start, i - line_start, cfg);
+            Leaf_Dimensions d = leaf_ctx->measure_text(text + line_start, i - line_start, cfg);
 
             if (d.width > avail_width)
             {
                 if (word_mode && last_word_break > line_start)
                     line_end = last_word_break;
-                else line_end = i;
+                else
+                    line_end = i;
                 break;
             }
+
             line_end = i;
+            if (i >= len) break;
+            i += cp_bytes;
         }
 
         uint32_t seg_start = line_start;
@@ -811,7 +831,7 @@ static Leaf_Node *leaf_wrap_text_node(Leaf_Node *parent, Leaf_Node *node, float 
         if (line_start == 0)
         {
             node->text.text   = seg;
-            node->text.length = seg_len;
+            node->text.size = seg_len;
             node->bounding_box.width  = d.width;
             node->bounding_box.height = d.height;
         }
@@ -821,7 +841,7 @@ static Leaf_Node *leaf_wrap_text_node(Leaf_Node *parent, Leaf_Node *node, float 
             line_node->type = LEAF_NODE_TYPE_TEXT;
             line_node->text.config = *cfg;
             line_node->text.text   = seg;
-            line_node->text.length = seg_len;
+            line_node->text.size = seg_len;
             line_node->bounding_box.width  = d.width;
             line_node->bounding_box.height = d.height;
             line_node->parent = parent;
@@ -840,7 +860,12 @@ static Leaf_Node *leaf_wrap_text_node(Leaf_Node *parent, Leaf_Node *node, float 
             next_start++;
 
         if (next_start <= line_start)
-            next_start = line_start + 1;
+        {
+            int cp = 0, cp_bytes = 1;
+            if (line_start < len)
+                leaf_char_from_utf8(text, line_start, &cp, &cp_bytes);
+            next_start = line_start + cp_bytes;
+        }
 
         if (next_start >= len) break;
         line_start = next_start;
