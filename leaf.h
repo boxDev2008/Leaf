@@ -9,19 +9,7 @@ extern "C" {
 
 #define LEAF_COLOR_WHITE (Leaf_Color) { 255, 255, 255, 255 }
 
-#ifdef LEAF_EXPORT
-#ifdef _MSC_VER
-#define LEAF_API __declspec(dllexport)
-#else
-#define LEAF_API __attribute__((visibility("default")))
-#endif
-#else
-#ifdef _MSC_VER
-#define LEAF_API __declspec(dllimport)
-#else
-#define LEAF_API
-#endif
-#endif
+#define LEAF_API // TODO(box): implement proper dll/wasm exporting
 
 typedef struct
 {
@@ -348,7 +336,7 @@ LEAF_API Leaf_BoundingBox leaf_get_bounding_box(Leaf_ID id);
 LEAF_API void leaf_begin_frame(int32_t width, int32_t height);
 LEAF_API Leaf_RenderCmdList leaf_end_frame(void);
 
-#define leaf_text(text, ...) __leaf_text(text, (Leaf_TextConfig)__VA_ARGS__)
+#define leaf_text(text, ...) do { Leaf_TextConfig __cfg = __VA_ARGS__; __leaf_text(text, __cfg); } while(0)
 LEAF_API void __leaf_text(const char *text, Leaf_TextConfig config);
 
 #ifndef LEAF_NO_DEBUG_TOOLS
@@ -1202,8 +1190,8 @@ void leaf_begin_frame(int32_t width, int32_t height)
 #endif
 
     Leaf_Node *root = leaf_alloc_node();
-    root->bounding_box.width = width;
-    root->bounding_box.height = height;
+    root->bounding_box.width = (float)width;
+    root->bounding_box.height = (float)height;
     leaf_stack_push(root);
 }
 
