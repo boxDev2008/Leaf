@@ -476,7 +476,7 @@ Leaf_ID leaf_id_indexed(const char *label, uint64_t index)
 
 void leaf_initialize(void)
 {
-    leaf_ctx = (Leaf_Context*)malloc(sizeof(Leaf_Context));
+    leaf_ctx = (Leaf_Context*)calloc(1, sizeof(Leaf_Context));
 }
 
 void leaf_shutdown(void)
@@ -678,6 +678,9 @@ static inline bool leaf_is_color_fill_empty(Leaf_ColorFill fill)
 
 static void leaf_render_node(Leaf_Node *node)
 {
+    if (node->bounding_box.width <= 0 || node->bounding_box.height <= 0)
+        return;
+
     switch (node->type)
     {
     case LEAF_NODE_TYPE_ELEMENT:
