@@ -38,7 +38,6 @@ static struct
     int32_t grad_size_location;
     int32_t grad_line_width_location;
     int32_t grad_draw_lines_location;
-    int32_t grad_fill_type_location;
 }
 leaf_raylib_ctx;
 
@@ -180,7 +179,6 @@ void leaf_raylib_initialize(Leaf_RaylibFont *fonts)
         "uniform vec2 size;"
         "uniform float lineWidth;"
         "uniform int drawLines;"
-        "uniform int fillType;"
         "void main() {"
             "vec2 pixel = (fragTexCoord - 0.5) * size;"
             "float r = rounding;"
@@ -188,13 +186,8 @@ void leaf_raylib_initialize(Leaf_RaylibFont *fonts)
             "float dist = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;"
             "if (dist > 0.5) discard;"
             "if (drawLines == 1 && dist < -lineWidth) discard;"
-            "float t;"
-            "if (fillType == 2) {"
-                "t = clamp(length(fragTexCoord - 0.5) * 2.0, 0.0, 1.0);"
-            "} else {"
-                "vec2 dir = vec2(cos(angle), sin(angle));"
-                "t = clamp(dot(fragTexCoord - 0.5, dir) + 0.5, 0.0, 1.0);"
-            "}"
+            "vec2 dir = vec2(cos(angle), sin(angle));"
+            "float t = clamp(dot(fragTexCoord - 0.5, dir) + 0.5, 0.0, 1.0);"
             "gl_FragColor = mix(color1, color2, t);"
         "}\0"
     #else
@@ -208,7 +201,6 @@ void leaf_raylib_initialize(Leaf_RaylibFont *fonts)
         "uniform vec2 size;"
         "uniform float lineWidth;"
         "uniform int drawLines;"
-        "uniform int fillType;"
         "void main() {"
             "vec2 pixel = (fragTexCoord - 0.5) * size;"
             "float r = rounding;"
@@ -216,13 +208,8 @@ void leaf_raylib_initialize(Leaf_RaylibFont *fonts)
             "float dist = length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - r;"
             "if (dist > 0.5) discard;"
             "if (drawLines == 1 && dist < -lineWidth) discard;"
-            "float t;"
-            "if (fillType == 2) {"
-                "t = clamp(length(fragTexCoord - 0.5) * 2.0, 0.0, 1.0);"
-            "} else {"
-                "vec2 dir = vec2(cos(angle), sin(angle));"
-                "t = clamp(dot(fragTexCoord - 0.5, dir) + 0.5, 0.0, 1.0);"
-            "}"
+            "vec2 dir = vec2(cos(angle), sin(angle));"
+            "float t = clamp(dot(fragTexCoord - 0.5, dir) + 0.5, 0.0, 1.0);"
             "finalColor = mix(color1, color2, t);"
         "}\0"
     #endif
@@ -234,7 +221,6 @@ void leaf_raylib_initialize(Leaf_RaylibFont *fonts)
     leaf_raylib_ctx.grad_size_location       = GetShaderLocation(leaf_raylib_ctx.gradient_shader, "size");
     leaf_raylib_ctx.grad_line_width_location = GetShaderLocation(leaf_raylib_ctx.gradient_shader, "lineWidth");
     leaf_raylib_ctx.grad_draw_lines_location = GetShaderLocation(leaf_raylib_ctx.gradient_shader, "drawLines");
-    leaf_raylib_ctx.grad_fill_type_location  = GetShaderLocation(leaf_raylib_ctx.gradient_shader, "fillType");
 }
 
 void leaf_raylib_shutdown(void)
@@ -267,16 +253,14 @@ static void leaf_raylib_draw_fill_rect(Leaf_BoundingBox bb, Leaf_ColorFill fill,
     float size[2]  = { bb.width, bb.height };
     float angle    = fill.angle;
     int   lines    = (line_width > 0.0f) ? 1 : 0;
-    int   filltype = (int)fill.type;
 
-    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_color1_location,     c1,         SHADER_UNIFORM_VEC4);
-    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_color2_location,     c2,         SHADER_UNIFORM_VEC4);
-    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_angle_location,      &angle,     SHADER_UNIFORM_FLOAT);
-    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_rounding_location,   &rounding,  SHADER_UNIFORM_FLOAT);
-    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_size_location,       size,       SHADER_UNIFORM_VEC2);
-    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_line_width_location, &line_width,SHADER_UNIFORM_FLOAT);
-    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_draw_lines_location, &lines,     SHADER_UNIFORM_INT);
-    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_fill_type_location,  &filltype,  SHADER_UNIFORM_INT);
+    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_color1_location,     c1,          SHADER_UNIFORM_VEC4);
+    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_color2_location,     c2,          SHADER_UNIFORM_VEC4);
+    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_angle_location,      &angle,      SHADER_UNIFORM_FLOAT);
+    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_rounding_location,   &rounding,   SHADER_UNIFORM_FLOAT);
+    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_size_location,       size,        SHADER_UNIFORM_VEC2);
+    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_line_width_location, &line_width, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(leaf_raylib_ctx.gradient_shader, leaf_raylib_ctx.grad_draw_lines_location, &lines,      SHADER_UNIFORM_INT);
 
     BeginShaderMode(leaf_raylib_ctx.gradient_shader);
     rlSetTexture(rlGetTextureIdDefault());
