@@ -48,15 +48,15 @@ static inline Font leaf_raylib_get_base_font(float font_size, uint32_t font_id)
     return font_size > 32.0f ? font.large : font.small;
 }
 
-static Leaf_Dimensions leaf_raylib_measure_text(const char *text, uint32_t length, const Leaf_TextConfig *config)
+static Leaf_Dimensions leaf_raylib_measure_text(const char *text, uint32_t length, float resolved_font_size, const Leaf_TextConfig *config)
 {
     float max_text_width = 0.0f;
     float line_text_width = 0.0f;
 
-    Font font_to_use = leaf_raylib_get_base_font(config->font_size, config->font_id);
+    Font font_to_use = leaf_raylib_get_base_font(resolved_font_size, config->font_id);
     if (!font_to_use.glyphs) font_to_use = GetFontDefault();
 
-    float scale_factor = config->font_size / (float)font_to_use.baseSize;
+    float scale_factor = resolved_font_size / (float)font_to_use.baseSize;
 
     int i = 0;
     while (i < (int)length)
@@ -85,7 +85,7 @@ static Leaf_Dimensions leaf_raylib_measure_text(const char *text, uint32_t lengt
 
     return (Leaf_Dimensions){
         max_text_width * scale_factor,
-        config->font_size
+        resolved_font_size
     };
 }
 
