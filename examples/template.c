@@ -24,29 +24,23 @@ int main(void)
 
         leaf_begin_frame(GetScreenWidth(), GetScreenHeight());
         leaf_set_pointer_pos(GetMouseX(), GetMouseY());
-        static bool show_debug = false;
-        if (IsKeyPressed(KEY_TAB))
-            show_debug = !show_debug;
-        leaf_debug(show_debug, 500, GetFrameTime(), GetMouseWheelMove())
+        leaf({
+            .id = leaf_id("Main Body"),
+            .size = {LEAF_SIZE_GROW, LEAF_SIZE_GROW},
+            .color = leaf_rgb(37, 35, 33),
+            .child_alignment = {LEAF_ALIGN_X_CENTER, LEAF_ALIGN_Y_CENTER},
+        })
         {
-            leaf({
-                .id = leaf_id("Main Body"),
-                .size = {LEAF_SIZE_GROW, LEAF_SIZE_GROW},
-                .color = leaf_rgb(37, 35, 33),
-                .child_alignment = {LEAF_ALIGN_X_CENTER, LEAF_ALIGN_Y_CENTER},
-            })
-            {
-                leaf_text("Hello, Leaf!",{
-                    .font_size = 128.0f,
-                    .color = leaf_rgb(237, 226, 231),
-                    .alignment = LEAF_TEXT_ALIGN_CENTER
-                });
-                leaf_text("[Secondary title] :3",{
-                    .font_size = 48.0f,
-                    .color = leaf_rgb(141, 133, 135),
-                    .alignment = LEAF_TEXT_ALIGN_CENTER
-                });
-            }
+            leaf_text("Hello, Leaf!",{
+                .font_size = 128.0f,
+                .color = leaf_rgb(237, 226, 231),
+                .alignment = LEAF_TEXT_ALIGN_CENTER
+            });
+            leaf_text("[Secondary title] :3",{
+                .font_size = 48.0f,
+                .color = leaf_rgb(141, 133, 135),
+                .alignment = LEAF_TEXT_ALIGN_CENTER
+            });
         }
 
         Leaf_RenderCmdList list = leaf_end_frame();
