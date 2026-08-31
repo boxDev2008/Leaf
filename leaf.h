@@ -775,15 +775,17 @@ __leaf_text(text, (Leaf_TextConfigWrapper){ __VA_ARGS__ }.wrapped)
                 parent->bounding_box.width += cw;
             else
                 parent->bounding_box.width = LEAF_MAX(
-                                                      cw + cfg->padding.left + cfg->padding.right,
-                                                      parent->bounding_box.width);
+                  cw + cfg->padding.left + cfg->padding.right,
+                  parent->bounding_box.width
+                );
         }
         if (fit_h)
         {
             if (cfg->direction == LEAF_DIRECTION_HORIZONTAL)
                 parent->bounding_box.height = LEAF_MAX(
-                                                       ch + cfg->padding.top + cfg->padding.bottom,
-                                                       parent->bounding_box.height);
+                   ch + cfg->padding.top + cfg->padding.bottom,
+                   parent->bounding_box.height
+                );
             else
                 parent->bounding_box.height += ch;
         }
@@ -1010,17 +1012,17 @@ for (Leaf_Node *x = _parent->first_child; x != NULL; x = x->next_sibling)
                         .height = node->bounding_box.height
                     };
                     leaf_push_render_cmd((Leaf_RenderCmd){
-                                             .type = LEAF_RENDER_CMD_SHADOW,
-                                             .color = (Leaf_ColorFill){
-                                                 .color1 = config->shadow.color,
-                                                 .type = LEAF_SOLID_COLOR_FILL
-                                             },
-                                             .bounding_box = shadow_box,
-                                             .shadow.offset = config->shadow.offset,
-                                             .shadow.blur_radius = config->shadow.blur_radius,
-                                             .shadow.rounding = leaf_resolve_rounding(node, config),
-                                             .shadow.rounding_corners = config->rounding.corners
-                                         });
+                         .type = LEAF_RENDER_CMD_SHADOW,
+                         .color = (Leaf_ColorFill){
+                             .color1 = config->shadow.color,
+                             .type = LEAF_SOLID_COLOR_FILL
+                         },
+                         .bounding_box = shadow_box,
+                         .shadow.offset = config->shadow.offset,
+                         .shadow.blur_radius = config->shadow.blur_radius,
+                         .shadow.rounding = leaf_resolve_rounding(node, config),
+                         .shadow.rounding_corners = config->rounding.corners
+                     });
                 }
 #endif
                 
@@ -1029,46 +1031,46 @@ for (Leaf_Node *x = _parent->first_child; x != NULL; x = x->next_sibling)
                     if (config->image)
                     {
                         leaf_push_render_cmd((Leaf_RenderCmd){
-                                                 .type = LEAF_RENDER_CMD_IMAGE,
-                                                 .color = config->color,
-                                                 .bounding_box = node->bounding_box,
-                                                 .image.handle = config->image,
-                                                 .image.rounding = leaf_resolve_rounding(node, config),
-                                                 .image.rounding_corners = config->rounding.corners
-                                             });
+                             .type = LEAF_RENDER_CMD_IMAGE,
+                             .color = config->color,
+                             .bounding_box = node->bounding_box,
+                             .image.handle = config->image,
+                             .image.rounding = leaf_resolve_rounding(node, config),
+                             .image.rounding_corners = config->rounding.corners
+                         });
                     }
                     else
                     {
                         leaf_push_render_cmd((Leaf_RenderCmd){
-                                                 .type = LEAF_RENDER_CMD_RECT,
-                                                 .color = config->color,
-                                                 .bounding_box = node->bounding_box,
-                                                 .rect.rounding = leaf_resolve_rounding(node, config),
-                                                 .rect.rounding_corners = config->rounding.corners
-                                             });
+                             .type = LEAF_RENDER_CMD_RECT,
+                             .color = config->color,
+                             .bounding_box = node->bounding_box,
+                             .rect.rounding = leaf_resolve_rounding(node, config),
+                             .rect.rounding_corners = config->rounding.corners
+                         });
                     }
                 }
                 
                 if (config->custom_draw)
                 {
                     leaf_push_render_cmd((Leaf_RenderCmd){
-                                             .type = LEAF_RENDER_CMD_CUSTOM,
-                                             .bounding_box = node->bounding_box,
-                                             .custom.draw = config->custom_draw,
-                                             .custom.user_data = node->element.custom_data
-                                         });
+                         .type = LEAF_RENDER_CMD_CUSTOM,
+                         .bounding_box = node->bounding_box,
+                         .custom.draw = config->custom_draw,
+                         .custom.user_data = node->element.custom_data
+                     });
                 }
                 
                 if (!leaf_is_color_fill_empty(config->border.color))
                     leaf_push_render_cmd((Leaf_RenderCmd){
-                                             .type = LEAF_RENDER_CMD_RECT_LINES,
-                                             .color = config->border.color,
-                                             .bounding_box = node->bounding_box,
-                                             .rect.rounding = leaf_resolve_rounding(node, config),
-                                             .rect.rounding_corners = config->rounding.corners,
-                                             .rect.line_width = config->border.width,
-                                             .rect.sides = config->border.sides
-                                         });
+                         .type = LEAF_RENDER_CMD_RECT_LINES,
+                         .color = config->border.color,
+                         .bounding_box = node->bounding_box,
+                         .rect.rounding = leaf_resolve_rounding(node, config),
+                         .rect.rounding_corners = config->rounding.corners,
+                         .rect.line_width = config->border.width,
+                         .rect.sides = config->border.sides
+                     });
                 break;
             }
             case LEAF_NODE_TYPE_TEXT:
@@ -1076,13 +1078,13 @@ for (Leaf_Node *x = _parent->first_child; x != NULL; x = x->next_sibling)
                 const Leaf_TextConfig *config = &node->text.config;
                 if (!leaf_is_color_fill_empty(config->color))
                     leaf_push_render_cmd((Leaf_RenderCmd){
-                                             .type = LEAF_RENDER_CMD_TEXT,
-                                             .color = config->color,
-                                             .bounding_box = node->bounding_box,
-                                             .text.text = node->text.text,
-                                             .text.font_size = node->text.resolved_font_size,
-                                             .text.font_id = config->font_id
-                                         });
+                         .type = LEAF_RENDER_CMD_TEXT,
+                         .color = config->color,
+                         .bounding_box = node->bounding_box,
+                         .text.text = node->text.text,
+                         .text.font_size = node->text.resolved_font_size,
+                         .text.font_id = config->font_id
+                     });
                 break;
             }
         }
@@ -1341,8 +1343,6 @@ for (Leaf_Node *x = _parent->first_child; x != NULL; x = x->next_sibling)
         {
             if (child->type != LEAF_NODE_TYPE_ELEMENT) continue;
             if (child->element.config.positioning != LEAF_POSITIONING_RELATIVE) continue;
-            if (child->element.config.size.width.type  == LEAF_SIZE_TYPE_GROW ||
-                child->element.config.size.width.type  == LEAF_SIZE_TYPE_PERCENT) { /* skip from width vote, still gets stretched below */ }
             max_w = LEAF_MAX(max_w, child->bounding_box.width);
             max_h = LEAF_MAX(max_h, child->bounding_box.height);
         }
@@ -1365,22 +1365,17 @@ for (Leaf_Node *x = _parent->first_child; x != NULL; x = x->next_sibling)
             }
         }
 
-        // If the parent direction matches the unified axis and parent is FIT, its size
-        // was summed from pre-unification children — recompute it from the new uniform width.
         if (do_w && cfg->size.width.type == LEAF_SIZE_TYPE_FIT)
         {
             int32_t rel = parent->element.relative_child_count;
             if (cfg->direction == LEAF_DIRECTION_HORIZONTAL)
-                parent->bounding_box.width = max_w * rel + LEAF_MAX(rel - 1, 0) * cfg->child_gap
-                                            + cfg->padding.left + cfg->padding.right;
-            // vertical case: width already correctly == max_w from recompute_fit, nothing to do
+                parent->bounding_box.width = max_w * rel + LEAF_MAX(rel - 1, 0) * cfg->child_gap + cfg->padding.left + cfg->padding.right;
         }
         if (do_h && cfg->size.height.type == LEAF_SIZE_TYPE_FIT)
         {
             int32_t rel = parent->element.relative_child_count;
             if (cfg->direction == LEAF_DIRECTION_VERTICAL)
-                parent->bounding_box.height = max_h * rel + LEAF_MAX(rel - 1, 0) * cfg->child_gap
-                                            + cfg->padding.top + cfg->padding.bottom;
+                parent->bounding_box.height = max_h * rel + LEAF_MAX(rel - 1, 0) * cfg->child_gap + cfg->padding.top + cfg->padding.bottom;
         }
     }
     
